@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch cancels the older, still-running build.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: swift-format lint
+    runs-on: ubuntu-latest
+    # Keep in sync with .swift-version.
+    container: swift:6.4.2-noble
+    steps:
+      - uses: actions/checkout@v7
+      - name: Lint (strict)
+        run: swift-format lint --strict --recursive --parallel Package.swift Sources Tests
+
+  build-test:
+    name: Build & test
+    runs-on: ubuntu-latest
+    container: swift:6.4.2-noble
+    services:
+      # PostgreSQL + PostGIS, used from Step 3 on. Throwaway CI-only credentials.
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_USER: unhinged_test
+          POSTGRES_PASSWORD: unhinged_test
+          POSTGRES_DB: unhinged_test
+        options: >-
+          --health-cmd "pg_isready -U unhinged_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USERNAME: unhinged_test
+      DATABASE_PASSWORD: unhinged_test
+      DATABASE_NAME: unhinged_test
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache SwiftPM build
+        uses: actions/cache@v6
+        with:
+          path: .build
+          key: swiftpm-${{ runner.os }}-6.4.2-${{ hashFiles('Package.resolved') }}
+          restore-keys: swiftpm-${{ runner.os }}-6.4.2-
+
+      - name: Build
+        run: swift build --build-tests
+
+      - name: Test
+        run: swift test --skip-build
+
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # scan the full history, not just the last commit
+      - name: Run gitleaks
+        # Same version as the pre-commit hook in .pre-commit-config.yaml.
+        run: >-
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.0
+          git /repo --redact --verbose --exit-code 1
