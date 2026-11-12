@@ -2,5 +2,8 @@ import Vapor
 
 /// Registers all HTTP routes.
 func routes(_ app: Application) throws {
-    // Intentionally empty: the first test (GET /health) must fail (red).
+    // Liveness probe: no auth, no body, reveals nothing about the system.
+    app.get("health") { _ -> HTTPStatus in
+        .ok
+    }
 }
