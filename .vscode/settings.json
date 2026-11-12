@@ -1,0 +1,14 @@
+{
+  "[swift]": {
+    "editor.defaultFormatter": "swiftlang.swift-vscode",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 4
+  },
+  "swift.path": "${userHome}/.local/share/swiftly/bin",
+  "files.exclude": {
+    "**/.build": true
+  },
+  "search.exclude": {
+    "**/.build": true
+  }
+}
